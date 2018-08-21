@@ -8,5 +8,10 @@ namespace OrderEntryMockingPractice.Services
         {
             return null;
         }
+
+        private double TaxTotal()
+        {
+            return 3.2;
+        }
     }
 }
