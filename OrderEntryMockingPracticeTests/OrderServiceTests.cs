@@ -23,10 +23,13 @@ namespace OrderEntryMockingPracticeTests
         private OrderService _orderService;
         private Order _order;
         private List<TaxEntry> _taxEntries;
+        // private OrderSummary _orderSummary;
 
-        private const int orderId = 10;
-        private const string orderNumber = "10";
-        private const int customerId = 1;
+        private const int OrderId = 10;
+        private const string OrderNumber = "10";
+        private const int CustomerId = 1;
+        private const decimal NetTotal = 45.0m;
+        private const decimal PostTaxTotal = NetTotal * 1.1m;
 
         [SetUp]
         public void SetUp()
@@ -41,9 +44,9 @@ namespace OrderEntryMockingPracticeTests
 
             _mockOrderFulfillmentService.Setup(o => o.Fulfill(It.IsAny<Order>()))
                 .Returns((Order o) => new OrderConfirmation{
-                    OrderId = orderId,
-                    OrderNumber = orderNumber,
-                    CustomerId = (int) (o.CustomerId ?? customerId)
+                    OrderId = OrderId,
+                    OrderNumber = OrderNumber,
+                    CustomerId = (int) (o.CustomerId ?? CustomerId)
                 });
 
             _mockProductRepository.Setup(r => r.IsInStock(It.IsIn("yay", "yes"))).Returns(true);
@@ -54,12 +57,12 @@ namespace OrderEntryMockingPracticeTests
                     new TaxEntry()
                     {
                         Description = "tax1",
-                        Rate = 1.045m,
+                        Rate = 0.60m,
                     },
                     new TaxEntry()
                     {
                         Description = "tax2",
-                        Rate = 1.10m,
+                        Rate = 0.60m,
                     }
             };
             _mockTaxRateService.Setup(t => t.GetTaxEntries(It.IsAny<string>(), It.IsAny<string>()))
@@ -68,6 +71,9 @@ namespace OrderEntryMockingPracticeTests
             _orderService = new OrderService(_mockCustomerRepository.Object, _mockEmailService.Object,
                 _mockOrderFulfillmentService.Object, _mockProductRepository.Object, 
                 _mockTaxRateService.Object);
+
+            _order = CreateValidOrder();
+            // _orderSummary = _orderService.PlaceOrder(_order);
         }
 
         private static OrderItem CreateOrderItem(string name, decimal price, string sku, int quantity) => new OrderItem
@@ -89,14 +95,13 @@ namespace OrderEntryMockingPracticeTests
 
         private static Order CreateValidOrder()
         {
-            return CreateOrder(1, new List<OrderItem> { CreateOrderItem("uni1", 33.4m, "yes", 2), CreateOrderItem("uni2", 30.5m, "yay", 3) });
+            return CreateOrder(1, new List<OrderItem> { CreateOrderItem("uni1", 10.0m, "yes", 2), CreateOrderItem("uni2", 5.0m, "yay", 3) });
         }
 
         [Test]
         public void PlaceOrder_ValidOrderAllItemsUniqueAndInStock_ReturnsOrderSummary()
         {
-            _order = CreateValidOrder();
-            OrderSummary orderSummary = _orderService.PlaceOrder(_order);
+            var orderSummary = _orderService.PlaceOrder(_order);
             Assert.IsNotNull(orderSummary);
             //Assert.Equals(orderSummary.OrderNumber, orderNumber);
             //Assert.Equals(orderSummary.OrderId, orderId);
@@ -107,28 +112,27 @@ namespace OrderEntryMockingPracticeTests
         [Test]
         public void PlaceOrder_InvalidOrderNotAllItemsUnique_ExceptionThrown()
         {
-            _order = CreateOrder(1, new List<OrderItem> { CreateOrderItem("nonu1", 33.4m, "yes", 2), CreateOrderItem("nonu2", 33.45m, "yes", 3) });
+            var badOrder = CreateOrder(1, new List<OrderItem> { CreateOrderItem("nonu1", 10.0m, "yes", 2), CreateOrderItem("nonu2", 10.0m, "yes", 3) });
             Assert.Throws<SKUsNotUniqueException>(() => _orderService.PlaceOrder(_order));
         }
 
         [Test]
         public void PlaceOrder_InvalidOrderNotAllProductsInStock_ExceptionThrown()
         {
-            _order = CreateOrder(1, new List<OrderItem> { CreateOrderItem("out1", 33.4m, "nope", 2), CreateOrderItem("out2", 30.5m, "nah", 3) });
+            var badOrder = CreateOrder(1, new List<OrderItem> { CreateOrderItem("out1", 33.4m, "nope", 2), CreateOrderItem("out2", 30.5m, "nah", 3) });
             Assert.Throws<ProductsNotInStockException>(() => _orderService.PlaceOrder(_order));
         }
 
         [Test]
         public void PlaceOrder_InvalidOrder_ExceptionThrown()
         {
-            _order = CreateOrder(1, new List<OrderItem> { CreateOrderItem("invalid1", 33.4m, "nope", 2), CreateOrderItem("invalid2", 33.45m, "nope", 3) });
+            var badOrder = CreateOrder(1, new List<OrderItem> { CreateOrderItem("invalid1", 33.4m, "nope", 2), CreateOrderItem("invalid2", 33.45m, "nope", 3) });
             Assert.Throws<SKUsNotUniqueAndProductNotInStockException>(() => _orderService.PlaceOrder(_order));
         }
 
         [Test]
         public void PlaceOrder_ValidOrder_OrderFulfillmentServiceCalled()
         {
-            _order = CreateValidOrder();
             OrderSummary orderSummary = _orderService.PlaceOrder(_order);
             _mockOrderFulfillmentService.Verify(f => f.Fulfill(_order), Times.Once);
         }
@@ -136,26 +140,25 @@ namespace OrderEntryMockingPracticeTests
         [Test]
         public void PlaceOrder_ValidOrder_ContainsFulfillmentConfirmationOrderNumber()
         {
-            _order = CreateValidOrder();
-            OrderSummary orderSummary = _orderService.PlaceOrder(_order);
+            var orderSummary = _orderService.PlaceOrder(_order);
 
             Assert.IsNotNull(orderSummary);
-            Assert.Equals(orderSummary.OrderNumber, orderNumber);
+            Assert.Equals(orderSummary.OrderNumber, OrderNumber);
         }
 
         [Test]
         public void PlaceOrder_ValidOrder_ContainsFulfillmentOrderId()
         {
-            _order = CreateValidOrder();
-            OrderSummary orderSummary = _orderService.PlaceOrder(_order);
+            var orderSummary = _orderService.PlaceOrder(_order);
 
             Assert.IsNotNull(orderSummary);
-            Assert.Equals(orderSummary.OrderId, orderId);
+            Assert.Equals(orderSummary.OrderId, OrderId);
         }
         [Test]
         public void PlaceOrder_ValidOrder_ContainsCorrectTaxes()
         {
-
+            var orderSummary = _orderService.PlaceOrder(_order);
+            Assert.AreEqual(orderSummary.Taxes, _taxEntries);
         }
 
         [Test]
@@ -167,13 +170,19 @@ namespace OrderEntryMockingPracticeTests
         [Test]
         public void PlaceOrder_ValidOrder_CorrectNetTotal()
         {
-            _order = CreateValidOrder();
+            var orderSummary = _orderService.PlaceOrder(_order);
+
+            Assert.IsNotNull(orderSummary);
+            Assert.Equals(orderSummary.NetTotal, NetTotal);
 
         }
         [Test]
         public void PlaceOrder_ValidOrder_CorrectOrderTotal()
         {
+            var orderSummary = _orderService.PlaceOrder(_order);
 
+            Assert.IsNotNull(orderSummary);
+            Assert.Equals(orderSummary.Total, PostTaxTotal);
         }
 
         [Test]

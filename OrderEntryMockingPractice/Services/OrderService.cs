@@ -1,4 +1,6 @@
-﻿using OrderEntryMockingPractice.Models;
+﻿using System.Collections.Generic;
+using System.Linq;
+using OrderEntryMockingPractice.Models;
 
 namespace OrderEntryMockingPractice.Services
 {
@@ -23,22 +25,26 @@ namespace OrderEntryMockingPractice.Services
 
         public OrderSummary PlaceOrder(Order order)
         {
+            // check if unique
+            // check if in stock
+
+            // find taxes
+            
+            // calculate nettotal
+            // calculate ordertotal
             return null;
         }
 
-        private double TaxTotal()
+        private decimal TotalTaxRate(IEnumerable<TaxEntry> taxEntries)
         {
-            return 3.2;
+            return taxEntries.Sum(taxEntry => taxEntry.Rate);
         }
 
-        private decimal NetTotal(int quantity, decimal price)
+        private decimal NetTotal(IEnumerable<OrderItem> orderItems)
         {
-            return quantity * price;
+            return orderItems.Sum(item => item.Quantity * item.Product.Price);
         }
 
-        private decimal OrderTotal(decimal netTotal, decimal taxRate)
-        {
-            return taxRate * netTotal;
-        }
+        private decimal OrderTotal(decimal netTotal, decimal taxRate) => taxRate * netTotal;
     }
 }
