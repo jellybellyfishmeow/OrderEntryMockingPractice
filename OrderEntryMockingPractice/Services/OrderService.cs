@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using MoreLinq.Extensions;
 using OrderEntryMockingPractice.Models;
 
 namespace OrderEntryMockingPractice.Services
@@ -25,25 +27,79 @@ namespace OrderEntryMockingPractice.Services
 
         public OrderSummary PlaceOrder(Order order)
         {
-            // check if unique
-            // check if in stock
+            var orderItems = order.OrderItems;
+            var orderSummary = new OrderSummary();
 
-            // find taxes
-            
-            // calculate nettotal
-            // calculate ordertotal
-            return null;
+            if (AreOrderItemsUnique(orderItems) && AllOrderItemsInStock(orderItems))
+            {
+                var confirmation = _orderFulfillmentService.Fulfill(order);
+                
+                // find customer
+                var customer = _customerRepository.Get((int)order.CustomerId);
+                // find taxes
+                var taxEntries = _taxRateService.GetTaxEntries(customer.PostalCode, customer.Country);
+                var taxrate = TotalTaxRate(taxEntries);
+                // calculate nettotal
+                var netTotal = NetTotal(orderItems);
+
+                // calculate ordertotal
+                var ordertotal = OrderTotal(netTotal, taxrate);
+
+                // create summary
+                /*
+                 * public int OrderId { get; set; }
+                    public string OrderNumber { get; set; }
+                    public int CustomerId { get; set; }
+
+                    public List<OrderItem> OrderItems { get; set; }
+                    public decimal NetTotal { get; set; }
+                    public IEnumerable<TaxEntry> Taxes { get; set; }
+                    public decimal Total { get; set; }
+                 */
+                orderSummary = new OrderSummary
+                {
+                    OrderId = confirmation.OrderId,
+                    CustomerId = (int)customer.CustomerId,
+                    OrderNumber = confirmation.OrderNumber,
+                    OrderItems = orderItems,
+                    NetTotal = netTotal,
+                    Total = ordertotal,
+                    Taxes = taxEntries
+                 };
+
+                // email
+
+            }
+            else if (AllOrderItemsInStock(orderItems))
+            {
+                // throw unique
+            }
+            else if (AreOrderItemsUnique(orderItems))
+            {
+                // throw in stock
+            }
+            else
+            {
+                // throw both
+            }
+
+
+            return orderSummary;
         }
 
-        private decimal TotalTaxRate(IEnumerable<TaxEntry> taxEntries)
+        private static bool AreOrderItemsUnique(List<OrderItem> orderItems)
         {
-            return taxEntries.Sum(taxEntry => taxEntry.Rate);
+            return orderItems.DistinctBy(o => o.Product.Sku).Count() == orderItems.Count();
         }
 
-        private decimal NetTotal(IEnumerable<OrderItem> orderItems)
+        private bool AllOrderItemsInStock(IEnumerable<OrderItem> orderItems)
         {
-            return orderItems.Sum(item => item.Quantity * item.Product.Price);
+            return orderItems.All(item => _productRepository.IsInStock(item.Product.Sku));
         }
+
+        private decimal TotalTaxRate(IEnumerable<TaxEntry> taxEntries) => taxEntries.Sum(taxEntry => taxEntry.Rate);
+
+        private decimal NetTotal(IEnumerable<OrderItem> orderItems) => orderItems.Sum(item => item.Quantity * item.Product.Price);
 
         private decimal OrderTotal(decimal netTotal, decimal taxRate) => taxRate * netTotal;
     }
