@@ -4,11 +4,11 @@ using System.Dynamic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using NUnit.Framework;
+using MSTestExtensions;
 using OrderEntryMockingPractice.Models;
 using OrderEntryMockingPractice.Services;
 using Assert = Microsoft.VisualStudio.TestTools.UnitTesting.Assert;
 using StringAssert = Microsoft.VisualStudio.TestTools.UnitTesting.StringAssert;
-
 namespace OrderEntryMockingPracticeTests
 {
     [TestFixture]
@@ -23,7 +23,6 @@ namespace OrderEntryMockingPracticeTests
         private OrderService _orderService;
         private Order _order;
         private List<TaxEntry> _taxEntries;
-        // private OrderSummary _orderSummary;
 
         private const int OrderId = 10;
         private const string OrderNumber = "10";
@@ -73,7 +72,6 @@ namespace OrderEntryMockingPracticeTests
                 _mockTaxRateService.Object);
 
             _order = CreateValidOrder();
-            // _orderSummary = _orderService.PlaceOrder(_order);
         }
 
         private static OrderItem CreateOrderItem(string name, decimal price, string sku, int quantity) => new OrderItem
@@ -110,24 +108,33 @@ namespace OrderEntryMockingPracticeTests
         }
 
         [Test]
+        [ExpectedException(typeof(SKUsNotUniqueException))]
         public void PlaceOrder_InvalidOrderNotAllItemsUnique_ExceptionThrown()
         {
             var badOrder = CreateOrder(1, new List<OrderItem> { CreateOrderItem("nonu1", 10.0m, "yes", 2), CreateOrderItem("nonu2", 10.0m, "yes", 3) });
-           // Assert.Throws<SKUsNotUniqueException>(() => _orderService.PlaceOrder(_order));
+            _orderService.PlaceOrder(badOrder);
+
+            //Assert.Throws<SKUsNotUniqueException>(() => _orderService.PlaceOrder(_order));
         }
 
         [Test]
+        [ExpectedException(typeof(ProductsNotInStockException))]
+
         public void PlaceOrder_InvalidOrderNotAllProductsInStock_ExceptionThrown()
         {
             var badOrder = CreateOrder(1, new List<OrderItem> { CreateOrderItem("out1", 33.4m, "nope", 2), CreateOrderItem("out2", 30.5m, "nah", 3) });
-            //Assert.Throws<ProductsNotInStockException>(() => _orderService.PlaceOrder(_order));
+            _orderService.PlaceOrder(badOrder);
+
         }
 
         [Test]
+        [ExpectedException(typeof(SKUsNotUniqueAndProductNotInStockException))]
         public void PlaceOrder_InvalidOrder_ExceptionThrown()
         {
             var badOrder = CreateOrder(1, new List<OrderItem> { CreateOrderItem("invalid1", 33.4m, "nope", 2), CreateOrderItem("invalid2", 33.45m, "nope", 3) });
-           // Assert.Throws<SKUsNotUniqueAndProductNotInStockException>(() => _orderService.PlaceOrder(_order));
+            _orderService.PlaceOrder(badOrder);
+
+            //Assert.Throws<SKUsNotUniqueAndProductNotInStockException>(() => _orderService.PlaceOrder(_order));
         }
 
         [Test]
@@ -165,7 +172,8 @@ namespace OrderEntryMockingPracticeTests
         [Test]
         public void PlaceOrder_ValidOrder_ConfirmationEmailSent()
         {
-
+            var orderSummary = _orderService.PlaceOrder(_order);
+            _mockEmailService.Verify(e => e.SendOrderConfirmationEmail(It.IsAny<int>(), It.IsAny<int>()), Times.Once());
         }
 
         [Test]
@@ -189,39 +197,26 @@ namespace OrderEntryMockingPracticeTests
         [Test]
         public void PlaceOrder_ValidCustomer_RetrieveFromCustomerRepository()
         {
-
+            var orderSummary = _orderService.PlaceOrder(_order);
+            Assert.AreEqual(CustomerId, orderSummary.CustomerId);
         }
 
         [Test]
         public void PlaceOrder_InvalidCustomer_CannotRetrieveFromCustomerRepository()
         {
-            _order = CreateValidOrder();
-
-
-        }
-
-        [Test]
-        public void PlaceOrder_ValidTax_RetrieveFromTaxRateService()
-        {
+            _mockCustomerRepository.Setup(c => c.Get(It.IsAny<int>())).Returns((Customer)null);
+            var orderSummary = _orderService.PlaceOrder(_order);
+            Assert.AreEqual(null, orderSummary.CustomerId);
 
         }
 
         [Test]
         public void PlaceOrder_InvalidTax_CannotRetrieveFromTaxRateService()
         {
-
-        }
-
-        [Test]
-        public void PlaceOrder_InStockProduct_RetrieveFromProductRepository()
-        {
-
-        }
-
-        [Test]
-        public void PlaceOrder_NotInStockProduct_CannotRetrieveFromProductRepository()
-        {
-
+            _mockTaxRateService.Setup(t => t.GetTaxEntries(It.IsAny<string>(), It.IsAny<string>()))
+                .Returns(new List<TaxEntry>());
+            var orderSummary = _orderService.PlaceOrder(_order);
+            Assert.AreEqual(new List<TaxEntry>(), orderSummary.Taxes);
         }
     }
 }
