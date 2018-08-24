@@ -1,4 +1,6 @@
-﻿namespace OrderEntryMockingPractice.Models
+﻿using System;
+
+namespace OrderEntryMockingPractice.Models
 {
     public class Customer
     {
@@ -13,5 +15,7 @@
         public string StateOrProvince { get; set; }
         public string PostalCode { get; set; }
         public string Country { get; set; }
+
+      
     }
 }

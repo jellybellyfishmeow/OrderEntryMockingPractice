@@ -9,11 +9,11 @@ namespace OrderEntryMockingPractice.Services
 {
     public class OrderService
     {
-        private ICustomerRepository _customerRepository;
-        private IEmailService _emailService;
-        private IOrderFulfillmentService _orderFulfillmentService;
-        private IProductRepository _productRepository;
-        private ITaxRateService _taxRateService;
+        private readonly ICustomerRepository _customerRepository;
+        private readonly IEmailService _emailService;
+        private readonly IOrderFulfillmentService _orderFulfillmentService;
+        private readonly IProductRepository _productRepository;
+        private readonly ITaxRateService _taxRateService;
 
         public OrderService(ICustomerRepository customerRepository, IEmailService emailService, 
             IOrderFulfillmentService orderFulfillmentService, IProductRepository productRepository,
@@ -37,25 +37,30 @@ namespace OrderEntryMockingPractice.Services
                 var confirmation = _orderFulfillmentService.Fulfill(order);
                 
                 var customer = _customerRepository.Get((int)order.CustomerId);
+                if (customer == null)
+                {
+                    throw new Exception("customer does not exist");
+                }
+
                 var taxEntries = _taxRateService.GetTaxEntries(customer.PostalCode, customer.Country);
                 var taxrate = TotalTaxRate(taxEntries);
                 var netTotal = NetTotal(orderItems);
                 var ordertotal = OrderTotal(netTotal, taxrate);
 
-              
+
                 orderSummary = new OrderSummary
                 {
                     OrderId = confirmation.OrderId,
-                    CustomerId = (int)customer.CustomerId,
+                    CustomerId = (int) customer.CustomerId,
                     OrderNumber = confirmation.OrderNumber,
                     OrderItems = orderItems,
                     NetTotal = netTotal,
                     Total = ordertotal,
                     Taxes = taxEntries
-                 };
+                };
 
-                _emailService.SendOrderConfirmationEmail((int)customer.CustomerId, confirmation.OrderId);
-
+                    _emailService.SendOrderConfirmationEmail((int) customer.CustomerId, confirmation.OrderId);
+                
             }
             else if (AllOrderItemsInStock(orderItems))
             {
